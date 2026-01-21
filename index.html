@@ -345,15 +345,15 @@
             4: 'game'
         };
 
-        // Social icons
+        // Social icons - moved to row 21 to be more visible
         const socialIcons = [
-            { x: 28, y: 22, type: 'twitter', url: 'https://x.com/mariuslsmith' },
-            { x: 30, y: 22, type: 'linkedin', url: 'https://www.linkedin.com/in/mariuslundingsmith/' }
+            { x: 28, y: 21, type: 'twitter', url: 'https://x.com/mariuslsmith' },
+            { x: 30, y: 21, type: 'linkedin', url: 'https://www.linkedin.com/in/mariuslundingsmith/' }
         ];
 
-        // Pixel font (consistent sizing)
+        // Pixel font
         const pixelFont = {
-            'M': [1,1,0,0,1,1,1,1,0,1,1,0,1,0,1,1,0,0,0,1,1,0,0,0,1,1,0,0,0,1,1,0,0,0,1],
+            'M': [1,1,0,1,1,1,1,1,1,1,1,0,1,0,1,1,0,0,0,1,1,0,0,0,1,1,0,0,0,1,1,0,0,0,1],
             'A': [0,1,1,1,0,1,0,0,0,1,1,0,0,0,1,1,1,1,1,1,1,0,0,0,1,1,0,0,0,1,1,0,0,0,1],
             'R': [1,1,1,1,0,1,0,0,0,1,1,1,1,1,0,1,0,1,0,0,1,0,0,1,0,1,0,0,0,1,1,0,0,0,1],
             'I': [1,1,1,1,1,0,0,1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1,0,0,1,1,1,1,1,0,0,0,0,0],
@@ -365,11 +365,10 @@
             'E': [1,1,1,1,1,1,0,0,0,0,1,1,1,1,0,1,0,0,0,0,1,0,0,0,0,1,1,1,1,1,0,0,0,0,0],
             'P': [1,1,1,1,0,1,0,0,0,1,1,1,1,1,0,1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,0,0,0,0,0],
             'Y': [1,0,0,0,1,1,0,0,0,1,0,1,1,1,0,0,0,1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,0,0,0],
-            '\'': [0,1,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
             ' ': [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]
         };
 
-        function drawPixelText(text, startX, startY, scale) {
+        function drawPixelText(text, startX, startY, scale = 4) {
             ctx.fillStyle = '#fff';
             let x = startX;
             for (let char of text.toUpperCase()) {
@@ -481,58 +480,68 @@
             ctx.fillRect(px + 2, py + 2, 2, 16);
             ctx.fillRect(px + 28, py + 2, 2, 16);
             
-            // Text
+            // Text "PLAY"
             ctx.fillStyle = '#ff0066';
-            ctx.font = `bold ${Math.floor(TILESIZE * 0.4)}px Courier New`;
+            ctx.font = `bold ${Math.floor(TILESIZE * 0.45)}px Courier New`;
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
             ctx.fillText('PLAY', px + 16, py + 10);
         }
 
-        function drawHouse(x, y, type) {
-            const px = x * TILESIZE;
-            const py = y * TILESIZE;
+        function drawHouse(gridX, gridY, type) {
+            const px = gridX * TILESIZE;
+            const py = gridY * TILESIZE;
             const size = TILESIZE * 2;
             
-            if (type === 1) { // About
+            if (type === 1) { // About - white house
+                // Main building
                 ctx.fillStyle = '#f0f0f0';
-                ctx.fillRect(px, py, size, size);
+                ctx.fillRect(px, py + size * 0.25, size, size * 0.75);
                 
+                // Roof - proper triangle
                 ctx.fillStyle = '#8b4513';
                 ctx.beginPath();
-                ctx.moveTo(px - 4, py + size * 0.3);
-                ctx.lineTo(px + size / 2, py - 4);
-                ctx.lineTo(px + size + 4, py + size * 0.3);
+                ctx.moveTo(px - 6, py + size * 0.25);
+                ctx.lineTo(px + size / 2, py - 6);
+                ctx.lineTo(px + size + 6, py + size * 0.25);
+                ctx.lineTo(px, py + size * 0.25);
                 ctx.closePath();
                 ctx.fill();
                 
+                // Door
                 ctx.fillStyle = '#8b4513';
-                ctx.fillRect(px + size * 0.35, py + size * 0.5, size * 0.3, size * 0.5);
+                ctx.fillRect(px + size * 0.35, py + size * 0.6, size * 0.3, size * 0.4);
                 
+                // Windows
                 ctx.fillStyle = '#87ceeb';
-                ctx.fillRect(px + size * 0.15, py + size * 0.35, size * 0.2, size * 0.2);
-                ctx.fillRect(px + size * 0.65, py + size * 0.35, size * 0.2, size * 0.2);
+                ctx.fillRect(px + size * 0.1, py + size * 0.4, size * 0.2, size * 0.2);
+                ctx.fillRect(px + size * 0.7, py + size * 0.4, size * 0.2, size * 0.2);
                 
-            } else if (type === 2) { // Works
+            } else if (type === 2) { // Works - gray house
+                // Main building
                 ctx.fillStyle = '#a0a0a0';
-                ctx.fillRect(px, py, size, size);
+                ctx.fillRect(px, py + size * 0.25, size, size * 0.75);
                 
+                // Roof
                 ctx.fillStyle = '#555';
                 ctx.beginPath();
-                ctx.moveTo(px - 4, py + size * 0.3);
-                ctx.lineTo(px + size / 2, py - 4);
-                ctx.lineTo(px + size + 4, py + size * 0.3);
+                ctx.moveTo(px - 6, py + size * 0.25);
+                ctx.lineTo(px + size / 2, py - 6);
+                ctx.lineTo(px + size + 6, py + size * 0.25);
+                ctx.lineTo(px, py + size * 0.25);
                 ctx.closePath();
                 ctx.fill();
                 
+                // Door
                 ctx.fillStyle = '#654321';
-                ctx.fillRect(px + size * 0.35, py + size * 0.5, size * 0.3, size * 0.5);
+                ctx.fillRect(px + size * 0.35, py + size * 0.6, size * 0.3, size * 0.4);
                 
+                // Windows
                 ctx.fillStyle = '#4169e1';
-                ctx.fillRect(px + size * 0.1, py + size * 0.3, size * 0.25, size * 0.25);
-                ctx.fillRect(px + size * 0.65, py + size * 0.3, size * 0.25, size * 0.25);
+                ctx.fillRect(px + size * 0.1, py + size * 0.35, size * 0.25, size * 0.25);
+                ctx.fillRect(px + size * 0.65, py + size * 0.35, size * 0.25, size * 0.25);
                 
-            } else if (type === 3) { // Music
+            } else if (type === 3) { // Music - Berghain (no roof, brutalist)
                 ctx.fillStyle = '#2a2a2a';
                 ctx.fillRect(px, py, size, size);
                 
@@ -625,25 +634,26 @@
                 ctx.fillRect(x, y, 3, 3);
             }
 
-            // Title - uniform size
-            const titleScale = 4;
-            drawPixelText('MARIUS SMITH', TILESIZE * 2.5, TILESIZE * 2.5, titleScale);
+            // Title
+            drawPixelText('MARIUS SMITH', TILESIZE * 2, TILESIZE * 2.5, 4);
 
             // Draw houses
-            drawHouse(6 * TILESIZE, 10 * TILESIZE, 1);
-            drawHouse(14 * TILESIZE, 10 * TILESIZE, 2);
-            drawHouse(22 * TILESIZE, 10 * TILESIZE, 3);
+            drawHouse(6, 10, 1); // About
+            drawHouse(14, 10, 2); // Works
+            drawHouse(22, 10, 3); // Music
 
+            // Draw game sign
             drawGameSign(27, 19);
+
             drawSocialIcons();
 
-            // Labels
+            // Labels - moved up to 9 * TILESIZE
             ctx.fillStyle = '#fff';
             ctx.font = 'bold 12px Courier New';
             ctx.textAlign = 'center';
-            ctx.fillText('ABOUT', 7 * TILESIZE, 9.5 * TILESIZE);
-            ctx.fillText('WORKS', 15 * TILESIZE, 9.5 * TILESIZE);
-            ctx.fillText('MUSIC', 23 * TILESIZE, 9.5 * TILESIZE);
+            ctx.fillText('ABOUT', 7 * TILESIZE, 9 * TILESIZE);
+            ctx.fillText('WORKS', 15 * TILESIZE, 9 * TILESIZE);
+            ctx.fillText('MUSIC', 23 * TILESIZE, 9 * TILESIZE);
 
             drawRobot(avatar.x, avatar.y, animationFrame);
         }
