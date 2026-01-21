@@ -19,14 +19,17 @@
             overflow: hidden;
             width: 100vw;
             height: 100vh;
-            display: flex;
-            align-items: center;
-            justify-content: center;
         }
         
         #canvas-container {
-            position: relative;
-            display: inline-block;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
         }
         
         #canvas {
@@ -36,9 +39,8 @@
             image-rendering: crisp-edges;
             cursor: crosshair;
             box-shadow: 0 0 40px rgba(0, 0, 0, 0.8);
-            max-width: 95vw;
-            max-height: 95vh;
             transition: filter 0.3s ease;
+            display: block;
         }
 
         #canvas.blurred {
@@ -46,7 +48,7 @@
         }
         
         #status {
-            position: absolute;
+            position: fixed;
             bottom: 20px;
             left: 20px;
             right: 20px;
@@ -183,6 +185,24 @@
             margin: 20px 0;
         }
 
+        .game-container {
+            width: 100%;
+            max-width: 900px;
+        }
+
+        .game-info {
+            text-align: center;
+            margin-bottom: 20px;
+            color: #999;
+            font-size: 14px;
+        }
+
+        .game-info .score {
+            font-size: 24px;
+            color: #fff;
+            margin: 10px 0;
+        }
+
         @media (max-width: 768px) {
             #status {
                 font-size: 10px;
@@ -221,7 +241,7 @@
 </head>
 <body>
     <div id="canvas-container">
-        <canvas id="canvas" width="1024" height="768"></canvas>
+        <canvas id="canvas"></canvas>
     </div>
     
     <div id="status">
@@ -259,44 +279,79 @@
         </div>
     </div>
 
+    <!-- Game Modal -->
+    <div id="modal-game" class="modal-overlay">
+        <div class="modal-content game-container">
+            <div class="modal-close" onclick="closeModal('game')">×</div>
+            <h1>Robot Runner</h1>
+            <div class="game-info">
+                <div>SPACE or CLICK to jump</div>
+                <div class="score">Score: <span id="game-score">0</span></div>
+                <div id="game-status"></div>
+            </div>
+            <canvas id="game-canvas" width="800" height="400" style="border: 2px solid #333; background: #050510; display: block; margin: 0 auto;"></canvas>
+        </div>
+    </div>
+
     <script>
         const canvas = document.getElementById('canvas');
         const ctx = canvas.getContext('2d', { alpha: false });
         ctx.imageSmoothingEnabled = false;
-        const TILESIZE = 32;
+        
+        let TILESIZE = 32;
+        let GRID_WIDTH = 32;
+        let GRID_HEIGHT = 24;
 
-        let map = Array(24).fill().map(() => Array(32).fill(0));
+        // Dynamic canvas sizing
+        function resizeCanvas() {
+            const windowWidth = window.innerWidth;
+            const windowHeight = window.innerHeight;
+            
+            const targetRatio = 4 / 3;
+            let width, height;
+            
+            if (windowWidth / windowHeight > targetRatio) {
+                height = windowHeight - 100;
+                width = height * targetRatio;
+            } else {
+                width = windowWidth - 40;
+                height = width / targetRatio;
+            }
+            
+            canvas.width = width;
+            canvas.height = height;
+            
+            TILESIZE = Math.floor(width / GRID_WIDTH);
+            
+            drawWorld();
+        }
 
-        // Houses (fixing coordinates: map[y][x])
+        let map = Array(GRID_HEIGHT).fill().map(() => Array(GRID_WIDTH).fill(0));
+
+        // Houses - 2x2 tiles
         map[10][6] = map[10][7] = map[11][6] = map[11][7] = 1; // About
         map[10][14] = map[10][15] = map[11][14] = map[11][15] = 2; // Works
-        map[10][22] = map[10][23] = map[11][22] = map[11][23] = 3; // Music/Berghain
+        map[10][22] = map[10][23] = map[11][22] = map[11][23] = 3; // Music
+
+        // Game sign
+        map[19][27] = 4; // "Let's Play" sign
 
         let avatar = { x: 15, y: 14 };
         let animationFrame = 0;
         const houses = {
             1: 'about',
             2: 'works',
-            3: 'music'
+            3: 'music',
+            4: 'game'
         };
 
-        // Social icons as clickable areas - moved to bottom right, closer together
+        // Social icons
         const socialIcons = [
-            { 
-                x: 28, 
-                y: 22, 
-                type: 'twitter',
-                url: 'https://x.com/mariuslsmith'
-            },
-            { 
-                x: 30, 
-                y: 22, 
-                type: 'linkedin',
-                url: 'https://www.linkedin.com/in/mariuslundingsmith/'
-            }
+            { x: 28, y: 22, type: 'twitter', url: 'https://x.com/mariuslsmith' },
+            { x: 30, y: 22, type: 'linkedin', url: 'https://www.linkedin.com/in/mariuslundingsmith/' }
         ];
 
-        // 5x7 Pixel font
+        // Pixel font (consistent sizing)
         const pixelFont = {
             'M': [1,1,0,0,1,1,1,1,0,1,1,0,1,0,1,1,0,0,0,1,1,0,0,0,1,1,0,0,0,1,1,0,0,0,1],
             'A': [0,1,1,1,0,1,0,0,0,1,1,0,0,0,1,1,1,1,1,1,1,0,0,0,1,1,0,0,0,1,1,0,0,0,1],
@@ -306,10 +361,15 @@
             'S': [0,1,1,1,1,1,0,0,0,0,0,1,1,1,0,0,0,0,0,1,0,0,0,0,1,1,1,1,1,0,0,0,0,0,0],
             'H': [1,0,0,0,1,1,0,0,0,1,1,1,1,1,1,1,0,0,0,1,1,0,0,0,1,1,0,0,0,1,1,0,0,0,1],
             'T': [1,1,1,1,1,0,0,1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,0,0,0],
+            'L': [1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1,1,1,1,1,0,0,0,0,0],
+            'E': [1,1,1,1,1,1,0,0,0,0,1,1,1,1,0,1,0,0,0,0,1,0,0,0,0,1,1,1,1,1,0,0,0,0,0],
+            'P': [1,1,1,1,0,1,0,0,0,1,1,1,1,1,0,1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,0,0,0,0,0],
+            'Y': [1,0,0,0,1,1,0,0,0,1,0,1,1,1,0,0,0,1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,0,0,0],
+            '\'': [0,1,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
             ' ': [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]
         };
 
-        function drawPixelText(text, startX, startY, scale = 5) {
+        function drawPixelText(text, startX, startY, scale) {
             ctx.fillStyle = '#fff';
             let x = startX;
             for (let char of text.toUpperCase()) {
@@ -326,61 +386,34 @@
             }
         }
 
-        // X (Twitter) icon - Classic X shape
         function drawTwitterIcon(x, y) {
             ctx.fillStyle = '#fff';
-            const s = 3; // pixel size
-            
-            // Draw X pattern
-            // Top-left to bottom-right diagonal
+            const s = 3;
             for (let i = 0; i < 6; i++) {
                 ctx.fillRect(x + i * s, y + i * s, s, s);
             }
-            // Top-right to bottom-left diagonal
             for (let i = 0; i < 6; i++) {
                 ctx.fillRect(x + (5 - i) * s, y + i * s, s, s);
             }
         }
 
-        // LinkedIn icon - "in" text in a square
         function drawLinkedInIcon(x, y) {
             ctx.fillStyle = '#fff';
-            const s = 2; // pixel size
-            
-            // Draw border square
-            // Top border
+            const s = 2;
             for (let i = 0; i < 12; i++) {
                 ctx.fillRect(x + i * s, y, s, s);
-            }
-            // Bottom border
-            for (let i = 0; i < 12; i++) {
                 ctx.fillRect(x + i * s, y + 11 * s, s, s);
-            }
-            // Left border
-            for (let i = 0; i < 12; i++) {
                 ctx.fillRect(x, y + i * s, s, s);
-            }
-            // Right border
-            for (let i = 0; i < 12; i++) {
                 ctx.fillRect(x + 11 * s, y + i * s, s, s);
             }
-            
-            // Draw "i" (left letter)
-            // Dot
             ctx.fillRect(x + 3 * s, y + 3 * s, s, s);
-            // Vertical line
             for (let i = 5; i < 9; i++) {
                 ctx.fillRect(x + 3 * s, y + i * s, s, s);
             }
-            
-            // Draw "n" (right letter)
-            // Left vertical line
             for (let i = 5; i < 9; i++) {
                 ctx.fillRect(x + 6 * s, y + i * s, s, s);
             }
-            // Top horizontal
             ctx.fillRect(x + 7 * s, y + 5 * s, s, s);
-            // Right vertical line
             for (let i = 6; i < 9; i++) {
                 ctx.fillRect(x + 8 * s, y + i * s, s, s);
             }
@@ -399,66 +432,144 @@
             });
         }
 
-        // Animated robot avatar
         function drawRobot(x, y, frame) {
             const px = x * TILESIZE;
             const py = y * TILESIZE;
             
-            // Robot body (silver/gray)
             ctx.fillStyle = '#c0c0c0';
-            
-            // Head
             ctx.fillRect(px + 10, py + 4, 12, 8);
             
-            // Eyes (alternate between on/off)
             ctx.fillStyle = frame % 20 < 18 ? '#00ff00' : '#004400';
             ctx.fillRect(px + 12, py + 6, 3, 3);
             ctx.fillRect(px + 17, py + 6, 3, 3);
             
-            // Antenna
             ctx.fillStyle = '#c0c0c0';
             ctx.fillRect(px + 15, py + 2, 2, 2);
             
-            // Body
             ctx.fillStyle = '#a0a0a0';
             ctx.fillRect(px + 9, py + 12, 14, 10);
             
-            // Chest panel
             ctx.fillStyle = '#333';
             ctx.fillRect(px + 13, py + 14, 6, 6);
             
-            // Arms (animate when walking)
             ctx.fillStyle = '#c0c0c0';
             const armOffset = Math.floor(frame / 5) % 2;
             ctx.fillRect(px + 6, py + 14 + armOffset, 3, 6);
             ctx.fillRect(px + 23, py + 14 + (1 - armOffset), 3, 6);
             
-            // Legs (animate when walking)
             const legOffset = Math.floor(frame / 5) % 2;
             ctx.fillRect(px + 11, py + 22, 4, 6 - legOffset);
             ctx.fillRect(px + 17, py + 22, 4, 6 - (1 - legOffset));
         }
 
+        function drawGameSign(x, y) {
+            const px = x * TILESIZE;
+            const py = y * TILESIZE;
+            
+            // Sign post
+            ctx.fillStyle = '#8b4513';
+            ctx.fillRect(px + 13, py + 12, 6, 16);
+            
+            // Sign board
+            ctx.fillStyle = '#f5f5dc';
+            ctx.fillRect(px + 2, py + 2, 28, 16);
+            
+            // Border
+            ctx.fillStyle = '#8b4513';
+            ctx.fillRect(px + 2, py + 2, 28, 2);
+            ctx.fillRect(px + 2, py + 16, 28, 2);
+            ctx.fillRect(px + 2, py + 2, 2, 16);
+            ctx.fillRect(px + 28, py + 2, 2, 16);
+            
+            // Text
+            ctx.fillStyle = '#ff0066';
+            ctx.font = `bold ${Math.floor(TILESIZE * 0.4)}px Courier New`;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText('PLAY', px + 16, py + 10);
+        }
+
+        function drawHouse(x, y, type) {
+            const px = x * TILESIZE;
+            const py = y * TILESIZE;
+            const size = TILESIZE * 2;
+            
+            if (type === 1) { // About
+                ctx.fillStyle = '#f0f0f0';
+                ctx.fillRect(px, py, size, size);
+                
+                ctx.fillStyle = '#8b4513';
+                ctx.beginPath();
+                ctx.moveTo(px - 4, py + size * 0.3);
+                ctx.lineTo(px + size / 2, py - 4);
+                ctx.lineTo(px + size + 4, py + size * 0.3);
+                ctx.closePath();
+                ctx.fill();
+                
+                ctx.fillStyle = '#8b4513';
+                ctx.fillRect(px + size * 0.35, py + size * 0.5, size * 0.3, size * 0.5);
+                
+                ctx.fillStyle = '#87ceeb';
+                ctx.fillRect(px + size * 0.15, py + size * 0.35, size * 0.2, size * 0.2);
+                ctx.fillRect(px + size * 0.65, py + size * 0.35, size * 0.2, size * 0.2);
+                
+            } else if (type === 2) { // Works
+                ctx.fillStyle = '#a0a0a0';
+                ctx.fillRect(px, py, size, size);
+                
+                ctx.fillStyle = '#555';
+                ctx.beginPath();
+                ctx.moveTo(px - 4, py + size * 0.3);
+                ctx.lineTo(px + size / 2, py - 4);
+                ctx.lineTo(px + size + 4, py + size * 0.3);
+                ctx.closePath();
+                ctx.fill();
+                
+                ctx.fillStyle = '#654321';
+                ctx.fillRect(px + size * 0.35, py + size * 0.5, size * 0.3, size * 0.5);
+                
+                ctx.fillStyle = '#4169e1';
+                ctx.fillRect(px + size * 0.1, py + size * 0.3, size * 0.25, size * 0.25);
+                ctx.fillRect(px + size * 0.65, py + size * 0.3, size * 0.25, size * 0.25);
+                
+            } else if (type === 3) { // Music
+                ctx.fillStyle = '#2a2a2a';
+                ctx.fillRect(px, py, size, size);
+                
+                const neonColors = ['#ff0066', '#00ffff', '#00ff00', '#ff00ff'];
+                const stripWidth = 4;
+                const spacing = Math.floor(size / 5);
+                
+                for (let i = 0; i < 4; i++) {
+                    ctx.fillStyle = neonColors[i];
+                    ctx.fillRect(px + spacing + i * spacing, py + 8, stripWidth, size - 16);
+                }
+                
+                ctx.fillStyle = '#3a3a3a';
+                ctx.fillRect(px, py, size, 3);
+                ctx.fillRect(px, py + size - 3, size, 3);
+            }
+        }
+
         function drawWorld() {
-            // Dark night sky background
+            // Sky
             ctx.fillStyle = '#050510';
-            ctx.fillRect(0, 0, 1024, 768);
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
 
             // Stars
             ctx.fillStyle = '#fff';
             for (let i = 0; i < 100; i++) {
-                const x = (i * 97) % 1024;
-                const y = (i * 73) % 400;
+                const x = (i * 97) % canvas.width;
+                const y = (i * 73) % (12 * TILESIZE);
                 const size = (i % 3) + 1;
                 ctx.fillRect(x, y, size, size);
             }
 
-            // Moon/Sun
-            const moonX = 900;
+            // Moon
+            const moonX = canvas.width - 100;
             const moonY = 80;
             const moonR = 35;
             
-            // Glow
             const glowGradient = ctx.createRadialGradient(moonX, moonY, 0, moonX, moonY, moonR * 2);
             glowGradient.addColorStop(0, 'rgba(255, 255, 136, 0.8)');
             glowGradient.addColorStop(0.4, 'rgba(255, 200, 100, 0.4)');
@@ -468,7 +579,6 @@
             ctx.arc(moonX, moonY, moonR * 2, 0, Math.PI * 2);
             ctx.fill();
             
-            // Moon body
             ctx.fillStyle = '#fffacd';
             ctx.beginPath();
             ctx.arc(moonX, moonY, moonR, 0, Math.PI * 2);
@@ -476,107 +586,211 @@
 
             // Ground
             ctx.fillStyle = '#1a1a2e';
-            ctx.fillRect(0, 12 * TILESIZE, 1024, 768);
+            ctx.fillRect(0, 12 * TILESIZE, canvas.width, canvas.height);
 
-            // Ground details - path/road
+            // Road
             ctx.fillStyle = '#252838';
-            ctx.fillRect(0, 18 * TILESIZE, 1024, 4 * TILESIZE);
+            ctx.fillRect(0, 18 * TILESIZE, canvas.width, 4 * TILESIZE);
             
-            // Road lines
             ctx.fillStyle = '#3a3f52';
-            for (let i = 0; i < 32; i += 3) {
+            for (let i = 0; i < GRID_WIDTH; i += 3) {
                 ctx.fillRect(i * TILESIZE, 19.5 * TILESIZE, TILESIZE, 4);
             }
 
-            // Grass patches
+            // Grass
             ctx.fillStyle = '#16213e';
             for (let i = 0; i < 300; i++) {
-                const x = (i * 113) % 1024;
+                const x = (i * 113) % canvas.width;
                 const y = 12 * TILESIZE + ((i * 79) % (6 * TILESIZE));
                 ctx.fillRect(x, y, 2, 2);
             }
 
-            // Small decorative trees/bushes
-            for (let i = 1; i < 31; i += 6) {
-                if (i !== 6 && i !== 7 && i !== 14 && i !== 15 && i !== 22 && i !== 23) {
-                    // Bush
+            // Trees
+            for (let i = 1; i < GRID_WIDTH - 1; i += 6) {
+                if (![6, 7, 14, 15, 22, 23, 27].includes(i)) {
                     ctx.fillStyle = '#1a3a1a';
                     ctx.fillRect(i * TILESIZE + 4, 13 * TILESIZE, 24, 16);
                     ctx.fillRect(i * TILESIZE + 8, 13 * TILESIZE - 4, 16, 8);
                     
-                    // Trunk
                     ctx.fillStyle = '#3d2817';
                     ctx.fillRect(i * TILESIZE + 12, 13 * TILESIZE + 12, 8, 8);
                 }
             }
 
-            // Flowers/plants
+            // Flowers
             for (let i = 0; i < 50; i++) {
-                const x = (i * 157) % 1024;
+                const x = (i * 157) % canvas.width;
                 const y = 12 * TILESIZE + ((i * 97) % (6 * TILESIZE));
                 ctx.fillStyle = i % 3 === 0 ? '#ff6b9d' : '#ffd700';
                 ctx.fillRect(x, y, 3, 3);
             }
 
-            // Title
-            drawPixelText('MARIUS SMITH', 80, 80, 5);
+            // Title - uniform size
+            const titleScale = 4;
+            drawPixelText('MARIUS SMITH', TILESIZE * 2.5, TILESIZE * 2.5, titleScale);
 
-            // Houses
-            for (let y = 0; y < 24; y++) {
-                for (let x = 0; x < 32; x++) {
-                    const tileValue = map[y][x];
-                    
-                    if (tileValue === 1) { // About - white house
-                        ctx.fillStyle = '#f0f0f0';
-                        ctx.fillRect(x * TILESIZE, y * TILESIZE, TILESIZE, TILESIZE);
-                        ctx.fillStyle = '#333';
-                        ctx.fillRect(x * TILESIZE + 8, y * TILESIZE + 10, 16, 18);
-                        ctx.fillStyle = '#8b4513';
-                        ctx.fillRect(x * TILESIZE + 10, y * TILESIZE + 15, 12, 13);
-                    } else if (tileValue === 2) { // Works - gray house
-                        ctx.fillStyle = '#a0a0a0';
-                        ctx.fillRect(x * TILESIZE, y * TILESIZE, TILESIZE, TILESIZE);
-                        ctx.fillStyle = '#4169e1';
-                        ctx.fillRect(x * TILESIZE + 6, y * TILESIZE + 8, 10, 10);
-                        ctx.fillRect(x * TILESIZE + 16, y * TILESIZE + 8, 10, 10);
-                        ctx.fillStyle = '#654321';
-                        ctx.fillRect(x * TILESIZE + 11, y * TILESIZE + 20, 10, 12);
-                    } else if (tileValue === 3) { // Berghain
-                        // Brutalist concrete
-                        ctx.fillStyle = '#2a2a2a';
-                        ctx.fillRect(x * TILESIZE, y * TILESIZE, TILESIZE, TILESIZE);
-                        
-                        // Neon strips
-                        const neonColors = ['#ff0066', '#00ffff', '#00ff00', '#ff00ff'];
-                        for (let i = 0; i < 4; i++) {
-                            ctx.fillStyle = neonColors[i];
-                            ctx.fillRect(x * TILESIZE + 4 + i * 6, y * TILESIZE + 4, 3, 24);
-                        }
-                        
-                        // Concrete details
-                        ctx.fillStyle = '#3a3a3a';
-                        ctx.fillRect(x * TILESIZE, y * TILESIZE, TILESIZE, 2);
-                        ctx.fillRect(x * TILESIZE, y * TILESIZE + TILESIZE - 2, TILESIZE, 2);
-                    }
-                }
-            }
+            // Draw houses
+            drawHouse(6 * TILESIZE, 10 * TILESIZE, 1);
+            drawHouse(14 * TILESIZE, 10 * TILESIZE, 2);
+            drawHouse(22 * TILESIZE, 10 * TILESIZE, 3);
 
-            // Social media icons
+            drawGameSign(27, 19);
             drawSocialIcons();
 
             // Labels
             ctx.fillStyle = '#fff';
             ctx.font = 'bold 12px Courier New';
             ctx.textAlign = 'center';
-            ctx.fillText('ABOUT', 6.5 * TILESIZE, 9.5 * TILESIZE);
-            ctx.fillText('WORKS', 14.5 * TILESIZE, 9.5 * TILESIZE);
-            ctx.fillText('MUSIC', 22.5 * TILESIZE, 9.5 * TILESIZE);
+            ctx.fillText('ABOUT', 7 * TILESIZE, 9.5 * TILESIZE);
+            ctx.fillText('WORKS', 15 * TILESIZE, 9.5 * TILESIZE);
+            ctx.fillText('MUSIC', 23 * TILESIZE, 9.5 * TILESIZE);
 
-            // Robot avatar
             drawRobot(avatar.x, avatar.y, animationFrame);
         }
 
+        // ===== GEOMETRY DASH GAME =====
+        let gameRunning = false;
+        let gameScore = 0;
+        let gameCanvas, gameCtx;
+        
+        class GameRobot {
+            constructor() {
+                this.x = 100;
+                this.y = 300;
+                this.width = 30;
+                this.height = 30;
+                this.velocityY = 0;
+                this.gravity = 0.8;
+                this.jumpPower = -15;
+                this.onGround = false;
+                this.frame = 0;
+            }
+
+            jump() {
+                if (this.onGround) {
+                    this.velocityY = this.jumpPower;
+                    this.onGround = false;
+                }
+            }
+
+            update() {
+                this.velocityY += this.gravity;
+                this.y += this.velocityY;
+                
+                if (this.y >= 300) {
+                    this.y = 300;
+                    this.velocityY = 0;
+                    this.onGround = true;
+                }
+                this.frame++;
+            }
+
+            draw(ctx) {
+                ctx.fillStyle = '#c0c0c0';
+                ctx.fillRect(this.x, this.y, this.width, this.height);
+                
+                ctx.fillStyle = '#00ff00';
+                ctx.fillRect(this.x + 5, this.y + 8, 6, 6);
+                ctx.fillRect(this.x + 19, this.y + 8, 6, 6);
+                
+                ctx.fillStyle = '#c0c0c0';
+                ctx.fillRect(this.x + 13, this.y - 4, 4, 4);
+            }
+        }
+
+        class Obstacle {
+            constructor(x) {
+                this.x = x;
+                this.y = 290;
+                this.width = 20;
+                this.height = 40;
+                this.speed = 5;
+            }
+
+            update() {
+                this.x -= this.speed;
+            }
+
+            draw(ctx) {
+                ctx.fillStyle = '#ff0066';
+                ctx.beginPath();
+                ctx.moveTo(this.x, this.y + this.height);
+                ctx.lineTo(this.x + this.width / 2, this.y);
+                ctx.lineTo(this.x + this.width, this.y + this.height);
+                ctx.closePath();
+                ctx.fill();
+            }
+
+            collidesWith(robot) {
+                return robot.x < this.x + this.width &&
+                       robot.x + robot.width > this.x &&
+                       robot.y < this.y + this.height &&
+                       robot.y + robot.height > this.y;
+            }
+        }
+
+        let gameRobot;
+        let obstacles = [];
+        let gameAnimationId;
+
+        function initGame() {
+            gameCanvas = document.getElementById('game-canvas');
+            gameCtx = gameCanvas.getContext('2d');
+            gameCtx.imageSmoothingEnabled = false;
+            
+            gameRobot = new GameRobot();
+            obstacles = [];
+            gameScore = 0;
+            gameRunning = true;
+            
+            document.getElementById('game-score').textContent = '0';
+            document.getElementById('game-status').textContent = '';
+            
+            gameLoop();
+        }
+
+        function gameLoop() {
+            if (!gameRunning) return;
+            
+            gameCtx.fillStyle = '#050510';
+            gameCtx.fillRect(0, 0, 800, 400);
+            
+            gameCtx.fillStyle = '#1a1a2e';
+            gameCtx.fillRect(0, 330, 800, 70);
+            
+            gameRobot.update();
+            gameRobot.draw(gameCtx);
+            
+            if (Math.random() < 0.02) {
+                obstacles.push(new Obstacle(800));
+            }
+            
+            for (let i = obstacles.length - 1; i >= 0; i--) {
+                obstacles[i].update();
+                obstacles[i].draw(gameCtx);
+                
+                if (obstacles[i].collidesWith(gameRobot)) {
+                    gameRunning = false;
+                    document.getElementById('game-status').textContent = 'GAME OVER! Click to restart';
+                    document.getElementById('game-status').style.color = '#ff0066';
+                }
+                
+                if (obstacles[i].x + obstacles[i].width < 0) {
+                    obstacles.splice(i, 1);
+                    gameScore++;
+                    document.getElementById('game-score').textContent = gameScore;
+                }
+            }
+            
+            if (gameRunning) {
+                gameAnimationId = requestAnimationFrame(gameLoop);
+            }
+        }
+
         function openModal(modalId) {
+            if (modalId === 'game') {
+                initGame();
+            }
             document.getElementById(`modal-${modalId}`).classList.add('active');
             document.getElementById('canvas').classList.add('blurred');
         }
@@ -584,13 +798,19 @@
         function closeModal(modalId) {
             document.getElementById(`modal-${modalId}`).classList.remove('active');
             document.getElementById('canvas').classList.remove('blurred');
+            if (modalId === 'game') {
+                gameRunning = false;
+                if (gameAnimationId) {
+                    cancelAnimationFrame(gameAnimationId);
+                }
+            }
         }
 
         function moveAvatar(dx, dy) {
             const newX = avatar.x + dx;
             const newY = avatar.y + dy;
             
-            if (newX >= 0 && newX < 32 && newY >= 0 && newY < 24) {
+            if (newX >= 0 && newX < GRID_WIDTH && newY >= 0 && newY < GRID_HEIGHT) {
                 const houseId = map[newY][newX];
                 if (houseId && houses[houseId]) {
                     openModal(houses[houseId]);
@@ -606,13 +826,11 @@
             drawWorld();
         }
 
-        // Animation loop for blinking eyes
         setInterval(() => {
             animationFrame++;
             drawWorld();
         }, 100);
 
-        // Handle clicks on social icons
         canvas.addEventListener('click', (e) => {
             const rect = canvas.getBoundingClientRect();
             const scaleX = canvas.width / rect.width;
@@ -630,19 +848,34 @@
             });
         });
 
+        document.getElementById('game-canvas').addEventListener('click', () => {
+            if (gameRunning) {
+                gameRobot.jump();
+            } else {
+                initGame();
+            }
+        });
+
         document.addEventListener('keydown', e => {
             const key = e.key.toLowerCase();
             
-            // Close modals with ESC
             if (key === 'escape') {
                 closeModal('about');
                 closeModal('works');
                 closeModal('music');
+                closeModal('game');
                 return;
             }
             
-            // Prevent movement when modal is open
             if (document.querySelector('.modal-overlay.active')) {
+                if (key === ' ' && document.getElementById('modal-game').classList.contains('active')) {
+                    e.preventDefault();
+                    if (gameRunning) {
+                        gameRobot.jump();
+                    } else {
+                        initGame();
+                    }
+                }
                 return;
             }
             
@@ -676,7 +909,6 @@
             }
         });
 
-        // Close modal when clicking outside
         document.querySelectorAll('.modal-overlay').forEach(overlay => {
             overlay.addEventListener('click', (e) => {
                 if (e.target === overlay) {
@@ -686,8 +918,8 @@
             });
         });
 
-        // Initial draw
-        drawWorld();
+        window.addEventListener('resize', resizeCanvas);
+        resizeCanvas();
     </script>
 </body>
 </html>
